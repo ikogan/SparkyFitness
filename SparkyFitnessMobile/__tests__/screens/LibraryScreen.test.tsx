@@ -44,6 +44,8 @@ const mockFetchWorkoutPresetsPage = fetchWorkoutPresetsPage as jest.MockedFuncti
 const insets = { top: 0, bottom: 0, left: 0, right: 0 };
 const frame = { x: 0, y: 0, width: 390, height: 844 };
 
+type CountQueryName = 'foods' | 'exercises' | 'presets';
+
 function createFood(id: string, name: string, calories: number) {
   return {
     id,
@@ -104,10 +106,21 @@ describe('LibraryScreen', () => {
     params: undefined,
   };
 
-  const renderScreen = () => {
+  const renderScreen = ({ fetchCounts = [] }: { fetchCounts?: CountQueryName[] } = {}) => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+
+    if (!fetchCounts.includes('foods')) {
+      queryClient.setQueryData(['foods', 'count'], 0);
+    }
+    if (!fetchCounts.includes('exercises')) {
+      queryClient.setQueryData(['exercises', 'count'], 0);
+    }
+    if (!fetchCounts.includes('presets')) {
+      queryClient.setQueryData(['workoutPresets', 'count'], 0);
+    }
+
     return render(
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider initialMetrics={{ insets, frame }}>
@@ -177,14 +190,16 @@ describe('LibraryScreen', () => {
     });
     mockFetchExercisesCount.mockResolvedValue(17);
 
-    const screen = renderScreen();
+    const screen = renderScreen({ fetchCounts: ['foods', 'exercises'] });
 
     expect(screen.getByText('Meals')).toBeTruthy();
     expect(screen.getByText('Foods')).toBeTruthy();
     expect(screen.getByText('Exercises')).toBeTruthy();
     expect(screen.getByText('2')).toBeTruthy();
-    await waitFor(() => expect(screen.getByText('448')).toBeTruthy());
-    await waitFor(() => expect(screen.getByText('17')).toBeTruthy());
+    await waitFor(() => {
+      expect(screen.getByText('448')).toBeTruthy();
+      expect(screen.getByText('17')).toBeTruthy();
+    });
   });
 
   it('navigates to MealsLibrary when the Meals row is pressed', () => {
@@ -298,7 +313,7 @@ describe('LibraryScreen', () => {
       pagination: { page: 1, pageSize: 1, totalCount: 9, hasMore: true },
     });
 
-    const screen = renderScreen();
+    const screen = renderScreen({ fetchCounts: ['presets'] });
 
     await waitFor(() => expect(screen.getByText('9')).toBeTruthy());
   });

@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { useCSSVariable } from 'uniwind';
 import BottomSheetPicker from './BottomSheetPicker';
 import Button from './ui/Button';
 import FormInput from './FormInput';
 import Icon from './Icon';
-import { DECIMAL_INPUT_REGEX } from '../utils/numericInput';
+import { DECIMAL_INPUT_REGEX, parseDecimalInput } from '../utils/numericInput';
 
 export interface FoodFormData {
   name: string;
@@ -44,6 +44,24 @@ const SERVING_UNIT_OPTIONS = [
   'ml', 'l', 'kg', 'lb', 'mg',
 ].map((u) => ({ label: u, value: u }));
 
+const NUTRITION_FIELDS: (keyof FoodFormData)[] = [
+  'calories',
+  'protein',
+  'carbs',
+  'fat',
+  'fiber',
+  'saturatedFat',
+  'transFat',
+  'sodium',
+  'sugars',
+  'potassium',
+  'cholesterol',
+  'calcium',
+  'iron',
+  'vitaminA',
+  'vitaminC',
+];
+
 const EMPTY_FORM: FoodFormData = {
   name: '',
   brand: '',
@@ -66,6 +84,23 @@ const EMPTY_FORM: FoodFormData = {
   vitaminC: '',
 };
 
+function isPositiveNumber(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function formatScaledInput(value: number): string {
+  const rounded = Math.round((value + Number.EPSILON) * 10) / 10;
+  return String(Object.is(rounded, -0) ? 0 : rounded);
+}
+
+function scaleNutritionInput(value: string, ratio: number): string {
+  const parsed = parseDecimalInput(value);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+  return formatScaledInput(parsed * ratio);
+}
+
 const FoodForm: React.FC<FoodFormProps> = ({
   initialValues,
   onSubmit,
@@ -76,7 +111,14 @@ const FoodForm: React.FC<FoodFormProps> = ({
 }) => {
   const [form, setForm] = useState<FoodFormData>({ ...EMPTY_FORM, ...initialValues });
   const [showMoreNutrients, setShowMoreNutrients] = useState(false);
-  const [textMuted, accentColor] = useCSSVariable(['--color-text-muted', '--color-accent-primary']) as [string, string];
+  const [autoScaleNutrition, setAutoScaleNutrition] = useState(false);
+  const [textMuted, accentColor, formEnabled, formDisabled] = useCSSVariable([
+    '--color-text-muted',
+    '--color-accent-primary',
+    '--color-form-enabled',
+    '--color-form-disabled',
+  ]) as [string, string, string, string];
+  const lastServingSizeRef = useRef(parseDecimalInput(initialValues?.servingSize ?? ''));
 
   const fieldRefs = {
     name: useRef<TextInput>(null),
@@ -104,7 +146,29 @@ const FoodForm: React.FC<FoodFormProps> = ({
   };
 
   const update = (field: keyof FoodFormData, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      if (field !== 'servingSize' || !autoScaleNutrition) {
+        return { ...prev, [field]: value };
+      }
+
+      const nextServingSize = parseDecimalInput(value);
+      const currentServingSize = parseDecimalInput(prev.servingSize);
+      const previousServingSize = isPositiveNumber(currentServingSize)
+        ? currentServingSize
+        : lastServingSizeRef.current;
+
+      if (!isPositiveNumber(nextServingSize) || !isPositiveNumber(previousServingSize)) {
+        return { ...prev, servingSize: value };
+      }
+
+      const ratio = nextServingSize / previousServingSize;
+      const nutritionUpdates: Partial<FoodFormData> = {};
+      NUTRITION_FIELDS.forEach((nutritionField) => {
+        nutritionUpdates[nutritionField] = scaleNutritionInput(prev[nutritionField], ratio);
+      });
+
+      return { ...prev, servingSize: value, ...nutritionUpdates };
+    });
   };
 
   useEffect(() => {
@@ -112,6 +176,13 @@ const FoodForm: React.FC<FoodFormProps> = ({
       onServingChange?.(form.servingSize, form.servingUnit);
     }
   }, [form.servingSize, form.servingUnit, onServingChange]);
+
+  useEffect(() => {
+    const servingSize = parseDecimalInput(form.servingSize);
+    if (isPositiveNumber(servingSize)) {
+      lastServingSizeRef.current = servingSize;
+    }
+  }, [form.servingSize]);
 
   const renderTextField = (
     label: string,
@@ -203,6 +274,17 @@ const FoodForm: React.FC<FoodFormProps> = ({
                 )}
               />
             </View>
+          </View>
+
+          <View className="flex-row items-center justify-between mt-1.5">
+            <Text className="text-text-secondary text-base">Auto Scale Nutrition</Text>
+            <Switch
+              accessibilityLabel="Auto Scale Nutrition"
+              value={autoScaleNutrition}
+              onValueChange={setAutoScaleNutrition}
+              trackColor={{ false: formDisabled, true: formEnabled }}
+              thumbColor="#FFFFFF"
+            />
           </View>
 
           <View className="gap-1.5 mt-1.5">

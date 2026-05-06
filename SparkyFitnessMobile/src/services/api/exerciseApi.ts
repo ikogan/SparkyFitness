@@ -111,6 +111,13 @@ export interface CreateExercisePayload {
   /** Omit when blank — server defaults missing/falsy values to 0. */
   calories_per_hour?: number;
   description: string | null;
+  equipment?: string[];
+  primary_muscles?: string[];
+  secondary_muscles?: string[];
+  instructions?: string[];
+  level?: string;
+  force?: string;
+  mechanic?: string;
 }
 
 export interface UpdateExercisePayload {

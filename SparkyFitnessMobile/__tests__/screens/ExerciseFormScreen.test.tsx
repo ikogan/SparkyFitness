@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { CommonActions } from '@react-navigation/native';
 import ExerciseFormScreen, {
+  buildCreatePayload,
   buildEditPayload,
   splitCsvList,
   joinCsvList,
@@ -93,6 +94,65 @@ describe('ExerciseFormScreen — helpers', () => {
 
   it('joinLines uses newlines', () => {
     expect(joinLines(['a', 'b'])).toBe('a\nb');
+  });
+});
+
+describe('ExerciseFormScreen — buildCreatePayload', () => {
+  const blankState = {
+    name: '',
+    category: 'strength',
+    caloriesPerHourText: '',
+    description: '',
+    equipment: '',
+    primaryMuscles: '',
+    secondaryMuscles: '',
+    instructions: '',
+    level: null,
+    force: null,
+    mechanic: null,
+  };
+
+  it('omits empty advanced fields', () => {
+    expect(buildCreatePayload('Lunges', blankState, undefined)).toEqual({
+      name: 'Lunges',
+      category: 'strength',
+      description: null,
+    });
+  });
+
+  it('includes equipment, muscles, instructions, level, force, and mechanic when set', () => {
+    const state = {
+      ...blankState,
+      caloriesPerHourText: '350',
+      description: 'Notes',
+      equipment: 'barbell, bench',
+      primaryMuscles: 'chest',
+      secondaryMuscles: 'triceps, shoulders',
+      instructions: 'Lie on bench\nPress up',
+      level: 'intermediate',
+      force: 'push',
+      mechanic: 'compound',
+    };
+
+    expect(buildCreatePayload('Bench Press', state, 350)).toEqual({
+      name: 'Bench Press',
+      category: 'strength',
+      description: 'Notes',
+      calories_per_hour: 350,
+      equipment: ['barbell', 'bench'],
+      primary_muscles: ['chest'],
+      secondary_muscles: ['triceps', 'shoulders'],
+      instructions: ['Lie on bench', 'Press up'],
+      level: 'intermediate',
+      force: 'push',
+      mechanic: 'compound',
+    });
+  });
+
+  it('defaults missing category to "general"', () => {
+    expect(
+      buildCreatePayload('Lunges', { ...blankState, category: null }, undefined),
+    ).toMatchObject({ category: 'general' });
   });
 });
 

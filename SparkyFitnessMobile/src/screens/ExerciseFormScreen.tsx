@@ -14,7 +14,7 @@ import type {
   RootStackParamList,
   RootStackScreenProps,
 } from '../types/navigation';
-import type { UpdateExercisePayload } from '../services/api/exerciseApi';
+import type { CreateExercisePayload, UpdateExercisePayload } from '../services/api/exerciseApi';
 
 const CATEGORY_OPTIONS = [
   { label: 'General', value: 'general' },
@@ -88,6 +88,23 @@ interface ExerciseFormBodyProps {
   showCategory: boolean;
 }
 
+const hasAdvancedContent = (state: ExerciseFormState): boolean =>
+  Boolean(
+    state.equipment ||
+      state.primaryMuscles ||
+      state.secondaryMuscles ||
+      state.instructions ||
+      state.level ||
+      state.force ||
+      state.mechanic,
+  );
+
+const SectionHeader: React.FC<{ children: string }> = ({ children }) => (
+  <Text className="text-text-secondary text-sm font-semibold uppercase tracking-wider">
+    {children}
+  </Text>
+);
+
 const labelForOption = (
   options: readonly { label: string; value: string }[],
   value: string | null,
@@ -103,6 +120,7 @@ const ExerciseFormBody: React.FC<ExerciseFormBodyProps> = ({
   showCategory,
 }) => {
   const textMuted = useCSSVariable('--color-text-muted') as string;
+  const [showAdvanced, setShowAdvanced] = useState(() => hasAdvancedContent(state));
 
   const categoryOptions = useMemo(() => {
     if (
@@ -116,6 +134,36 @@ const ExerciseFormBody: React.FC<ExerciseFormBodyProps> = ({
     }
     return CATEGORY_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }));
   }, [state.category]);
+
+  const renderPicker = (
+    label: string,
+    options: readonly { label: string; value: string }[],
+    value: string | null,
+    onSelect: (next: string) => void,
+  ) => (
+    <View className="gap-1.5">
+      <Text className="text-text-secondary text-sm font-medium">{label}</Text>
+      <BottomSheetPicker<string>
+        value={value ?? ''}
+        options={options.map((opt) => ({ label: opt.label, value: opt.value }))}
+        onSelect={onSelect}
+        title={`Select ${label}`}
+        renderTrigger={({ onPress }) => (
+          <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={0.7}
+            className="bg-raised rounded-lg border border-border-subtle px-3 py-2.5 flex-row items-center justify-between"
+            style={{ height: 44 }}
+          >
+            <Text className="text-text-primary" style={{ fontSize: 16 }}>
+              {labelForOption(options, value)}
+            </Text>
+            <Icon name="chevron-down" size={16} color={textMuted} />
+          </TouchableOpacity>
+        )}
+      />
+    </View>
+  );
 
   return (
     <View className="bg-surface rounded-xl p-4 gap-4 shadow-sm">
@@ -132,30 +180,11 @@ const ExerciseFormBody: React.FC<ExerciseFormBodyProps> = ({
         />
       </View>
 
-      {showCategory ? (
-        <View className="gap-1.5">
-          <Text className="text-text-secondary text-sm font-medium">Category</Text>
-          <BottomSheetPicker<string>
-            value={state.category ?? 'general'}
-            options={categoryOptions}
-            onSelect={(category) => setState((prev) => ({ ...prev, category }))}
-            title="Select Category"
-            renderTrigger={({ onPress }) => (
-              <TouchableOpacity
-                onPress={onPress}
-                activeOpacity={0.7}
-                className="bg-raised rounded-lg border border-border-subtle px-3 py-2.5 flex-row items-center justify-between"
-                style={{ height: 44 }}
-              >
-                <Text className="text-text-primary" style={{ fontSize: 16 }}>
-                  {labelForOption(categoryOptions, state.category)}
-                </Text>
-                <Icon name="chevron-down" size={16} color={textMuted} />
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-      ) : null}
+      {showCategory
+        ? renderPicker('Category', categoryOptions, state.category, (category) =>
+            setState((prev) => ({ ...prev, category })),
+          )
+        : null}
 
       <View className="gap-1.5">
         <Text className="text-text-secondary text-sm font-medium">
@@ -175,132 +204,6 @@ const ExerciseFormBody: React.FC<ExerciseFormBodyProps> = ({
       </View>
 
       <View className="gap-1.5">
-        <Text className="text-text-secondary text-sm font-medium">Equipment</Text>
-        <FormInput
-          placeholder="Comma-separated (e.g. dumbbell, bench)"
-          value={state.equipment}
-          onChangeText={(equipment) => setState((prev) => ({ ...prev, equipment }))}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-
-      <View className="gap-1.5">
-        <Text className="text-text-secondary text-sm font-medium">
-          Primary muscles
-        </Text>
-        <FormInput
-          placeholder="Comma-separated (e.g. quadriceps, glutes)"
-          value={state.primaryMuscles}
-          onChangeText={(primaryMuscles) =>
-            setState((prev) => ({ ...prev, primaryMuscles }))
-          }
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-
-      <View className="gap-1.5">
-        <Text className="text-text-secondary text-sm font-medium">
-          Secondary muscles
-        </Text>
-        <FormInput
-          placeholder="Comma-separated"
-          value={state.secondaryMuscles}
-          onChangeText={(secondaryMuscles) =>
-            setState((prev) => ({ ...prev, secondaryMuscles }))
-          }
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
-
-      <View className="gap-1.5">
-        <Text className="text-text-secondary text-sm font-medium">
-          Instructions
-        </Text>
-        <FormInput
-          placeholder="One step per line"
-          value={state.instructions}
-          onChangeText={(instructions) =>
-            setState((prev) => ({ ...prev, instructions }))
-          }
-          multiline
-          numberOfLines={6}
-          style={{ minHeight: 120, textAlignVertical: 'top' }}
-        />
-      </View>
-
-      <View className="gap-1.5">
-        <Text className="text-text-secondary text-sm font-medium">Level</Text>
-        <BottomSheetPicker<string>
-          value={state.level ?? ''}
-          options={LEVEL_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
-          onSelect={(level) => setState((prev) => ({ ...prev, level }))}
-          title="Select Level"
-          renderTrigger={({ onPress }) => (
-            <TouchableOpacity
-              onPress={onPress}
-              activeOpacity={0.7}
-              className="bg-raised rounded-lg border border-border-subtle px-3 py-2.5 flex-row items-center justify-between"
-              style={{ height: 44 }}
-            >
-              <Text className="text-text-primary" style={{ fontSize: 16 }}>
-                {labelForOption(LEVEL_OPTIONS, state.level)}
-              </Text>
-              <Icon name="chevron-down" size={16} color={textMuted} />
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      <View className="gap-1.5">
-        <Text className="text-text-secondary text-sm font-medium">Force</Text>
-        <BottomSheetPicker<string>
-          value={state.force ?? ''}
-          options={FORCE_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
-          onSelect={(force) => setState((prev) => ({ ...prev, force }))}
-          title="Select Force"
-          renderTrigger={({ onPress }) => (
-            <TouchableOpacity
-              onPress={onPress}
-              activeOpacity={0.7}
-              className="bg-raised rounded-lg border border-border-subtle px-3 py-2.5 flex-row items-center justify-between"
-              style={{ height: 44 }}
-            >
-              <Text className="text-text-primary" style={{ fontSize: 16 }}>
-                {labelForOption(FORCE_OPTIONS, state.force)}
-              </Text>
-              <Icon name="chevron-down" size={16} color={textMuted} />
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      <View className="gap-1.5">
-        <Text className="text-text-secondary text-sm font-medium">Mechanic</Text>
-        <BottomSheetPicker<string>
-          value={state.mechanic ?? ''}
-          options={MECHANIC_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
-          onSelect={(mechanic) => setState((prev) => ({ ...prev, mechanic }))}
-          title="Select Mechanic"
-          renderTrigger={({ onPress }) => (
-            <TouchableOpacity
-              onPress={onPress}
-              activeOpacity={0.7}
-              className="bg-raised rounded-lg border border-border-subtle px-3 py-2.5 flex-row items-center justify-between"
-              style={{ height: 44 }}
-            >
-              <Text className="text-text-primary" style={{ fontSize: 16 }}>
-                {labelForOption(MECHANIC_OPTIONS, state.mechanic)}
-              </Text>
-              <Icon name="chevron-down" size={16} color={textMuted} />
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      <View className="gap-1.5">
         <Text className="text-text-secondary text-sm font-medium">Description</Text>
         <FormInput
           placeholder="Optional notes about the exercise"
@@ -313,6 +216,104 @@ const ExerciseFormBody: React.FC<ExerciseFormBodyProps> = ({
           style={{ minHeight: 96, textAlignVertical: 'top' }}
         />
       </View>
+
+      <TouchableOpacity
+        onPress={() => setShowAdvanced((prev) => !prev)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: showAdvanced }}
+        className="flex-row items-center justify-between py-2"
+      >
+        <Text className="text-text-primary font-medium" style={{ fontSize: 16 }}>
+          Advanced
+        </Text>
+        <Icon
+          name={showAdvanced ? 'chevron-down' : 'chevron-forward'}
+          size={16}
+          color={textMuted}
+        />
+      </TouchableOpacity>
+
+      {showAdvanced ? (
+        <View className="gap-4">
+          <SectionHeader>Muscles</SectionHeader>
+
+          <View className="gap-1.5">
+            <Text className="text-text-secondary text-sm font-medium">
+              Primary muscles
+            </Text>
+            <FormInput
+              placeholder="Comma-separated (e.g. quadriceps, glutes)"
+              value={state.primaryMuscles}
+              onChangeText={(primaryMuscles) =>
+                setState((prev) => ({ ...prev, primaryMuscles }))
+              }
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View className="gap-1.5">
+            <Text className="text-text-secondary text-sm font-medium">
+              Secondary muscles
+            </Text>
+            <FormInput
+              placeholder="Comma-separated"
+              value={state.secondaryMuscles}
+              onChangeText={(secondaryMuscles) =>
+                setState((prev) => ({ ...prev, secondaryMuscles }))
+              }
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <SectionHeader>Classification</SectionHeader>
+
+          {renderPicker('Level', LEVEL_OPTIONS, state.level, (level) =>
+            setState((prev) => ({ ...prev, level })),
+          )}
+          {renderPicker('Force', FORCE_OPTIONS, state.force, (force) =>
+            setState((prev) => ({ ...prev, force })),
+          )}
+          {renderPicker('Mechanic', MECHANIC_OPTIONS, state.mechanic, (mechanic) =>
+            setState((prev) => ({ ...prev, mechanic })),
+          )}
+
+          <SectionHeader>Details</SectionHeader>
+
+          <View className="gap-1.5">
+            <Text className="text-text-secondary text-sm font-medium">
+              Equipment
+            </Text>
+            <FormInput
+              placeholder="Comma-separated (e.g. dumbbell, bench)"
+              value={state.equipment}
+              onChangeText={(equipment) =>
+                setState((prev) => ({ ...prev, equipment }))
+              }
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View className="gap-1.5">
+            <Text className="text-text-secondary text-sm font-medium">
+              Instructions
+            </Text>
+            <FormInput
+              placeholder="One step per line"
+              value={state.instructions}
+              onChangeText={(instructions) =>
+                setState((prev) => ({ ...prev, instructions }))
+              }
+              multiline
+              numberOfLines={6}
+              style={{ minHeight: 120, textAlignVertical: 'top' }}
+            />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -332,6 +333,35 @@ const validateAndParseCalories = (
     return { ok: false };
   }
   return { ok: true, value: parsed };
+};
+
+const buildCreatePayload = (
+  trimmedName: string,
+  state: ExerciseFormState,
+  caloriesValue: number | undefined,
+): CreateExercisePayload => {
+  const trimmedDescription = state.description.trim();
+  const equipmentList = splitCsvList(state.equipment);
+  const primaryList = splitCsvList(state.primaryMuscles);
+  const secondaryList = splitCsvList(state.secondaryMuscles);
+  const stepsList = splitLines(state.instructions);
+
+  const payload: CreateExercisePayload = {
+    name: trimmedName,
+    category: state.category ?? 'general',
+    description: trimmedDescription.length > 0 ? trimmedDescription : null,
+  };
+
+  if (caloriesValue !== undefined) payload.calories_per_hour = caloriesValue;
+  if (equipmentList.length > 0) payload.equipment = equipmentList;
+  if (primaryList.length > 0) payload.primary_muscles = primaryList;
+  if (secondaryList.length > 0) payload.secondary_muscles = secondaryList;
+  if (stepsList.length > 0) payload.instructions = stepsList;
+  if (state.level) payload.level = state.level;
+  if (state.force) payload.force = state.force;
+  if (state.mechanic) payload.mechanic = state.mechanic;
+
+  return payload;
 };
 
 interface CreateExerciseModeProps {
@@ -368,15 +398,10 @@ const CreateExerciseMode: React.FC<CreateExerciseModeProps> = ({ navigation }) =
     const calories = validateAndParseCalories(state.caloriesPerHourText);
     if (!calories.ok) return;
 
-    const trimmedDescription = state.description.trim();
+    const payload = buildCreatePayload(trimmedName, state, calories.value);
 
     try {
-      const created = await createExerciseAsync({
-        name: trimmedName,
-        category: state.category ?? 'general',
-        ...(calories.value !== undefined ? { calories_per_hour: calories.value } : {}),
-        description: trimmedDescription.length > 0 ? trimmedDescription : null,
-      });
+      const created = await createExerciseAsync(payload);
       Toast.show({ type: 'success', text1: 'Exercise created' });
       navigation.replace('ExerciseDetail', { item: created });
     } catch {
@@ -557,5 +582,12 @@ const ExerciseFormScreen: React.FC<ExerciseFormScreenProps> = ({
 export default ExerciseFormScreen;
 
 // Exposed for testing.
-export { splitCsvList, joinCsvList, splitLines, joinLines, buildEditPayload };
+export {
+  splitCsvList,
+  joinCsvList,
+  splitLines,
+  joinLines,
+  buildCreatePayload,
+  buildEditPayload,
+};
 export type { ExerciseFormState, EditParams };
